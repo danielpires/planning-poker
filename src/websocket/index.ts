@@ -1,72 +1,80 @@
-import {Server as httpServer} from "http";
+import { Server as httpServer } from "http";
 import { Server, Socket } from "socket.io";
 
+interface User {
+  name: string;
+  vote: string | null;
+}
+
 export class WebSocketServer {
+  private server: Server;
+  private users: Record<string, User> = {};
 
-    private server: Server;
-    private users : Record<string, string> = {};
-    private votes : Record<string, string> = {};
-    private revealed : Boolean = false;
-    
-    constructor(httpServer: httpServer) {
-        this.server = new Server(httpServer);
-        
-        this.server.on("connection", (socket: Socket) => {
-            console.log("User connected: " + socket.id);
+  constructor(httpServer: httpServer) {
+    this.server = new Server(httpServer);
 
-            socket.on("register", (username) => {
-                this.users[socket.id] = username;
-                this.server.emit("userlist", this.getUserStatus());
-                socket.emit("init", { revealed: this.revealed });
-            });
+    this.server.on("connection", (socket: Socket) => {
+      console.log("User connected: " + socket.id);
 
-            socket.on("exit", (username) => {
-                delete this.users[socket.id];
-                this.server.emit("userlist", this.getUserStatus());
-            });
+      socket.on("register", (name: string) => {
+        this.users[socket.id] = { name, vote: null };
+        this.updateUserList();
+      });
 
-            socket.on("vote", (value) => {
-                if (!this.revealed) {
-                    this.votes[socket.id] = value;
-                    this.server.emit("userlist", this.getUserStatus());
-                }
-            });
+      socket.on("exit", () => {
+        delete this.users[socket.id];
+        this.updateUserList();
+      });
 
-            socket.on("reveal", () => {
-                this.revealed = true;
-                this.server.emit("results", this.getDetailedVotes());
-            });
+      socket.on("vote", (value: string) => {
+        this.users[socket.id].vote = value;
+        this.updateUserList();
+      });
 
-            socket.on("reset", () => {
-                this.votes = {};
-                this.revealed = false;
-                this.server.emit("reset");
-                this.server.emit("userlist", this.getUserStatus());
-            });
+      socket.on("reveal", () => {
+        this.revealVotes();
+      });
 
-            socket.on("disconnect", () => {
-                console.log("User disconnected: " + socket.id);
-                delete this.users[socket.id];
-                delete this.votes[socket.id];
-                this.server.emit("userlist", this.getUserStatus());
-            });
+      socket.on("reset", () => {
+        Object.values(this.users).forEach((user) => {
+          user.vote = null;
         });
-    }
+        this.reset();
+        this.updateUserList();
+      });
 
-    getDetailedVotes() {
-        return Object.entries(this.users).map(([id, name]) => ({
-          name,
-          voted: this.votes.hasOwnProperty(id),
-          vote: this.votes[id] || null
-        }));
-      }
-      
-    getUserStatus() {
-        return Object.entries(this.users).map(([id, name]) => ({
-          name,
-          voted: this.votes.hasOwnProperty(id),
-          vote: this.revealed ? this.votes[id] : null
-        }));
-    }
-    
+      socket.on("disconnect", () => {
+        console.log("User disconnected: " + socket.id);
+        delete this.users[socket.id];
+        this.updateUserList();
+      });
+    });
+  }
+
+  private updateUserList() {
+    this.server.emit(
+      "users",
+      Object.entries(this.users).map(([id, user]) => ({
+        id,
+        name: user.name,
+        voted: user.vote !== null,
+      }))
+    );
+  }
+
+  private revealVotes() {
+    this.server.emit(
+      "votes",
+      Object.entries(this.users).map(([id, user]) => ({
+        id,
+        name: user.name,
+        vote: user.vote,
+        voted: user.vote !== null,
+      }))
+    );
+  }
+
+  private reset() {
+    this.server.emit("reset");
+  }
 }
