@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fleet Planning Poker</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .table-wrapper {
+      position: relative;
+      width: 800px;
+      height: 400px;
+      margin: auto;
+      background: url('./assets/table.png') no-repeat center center;
+      background-size: contain;
+    }
+    .seat {
+      position: absolute;
+      width: 100px;
+      text-align: center;
+      transform: translate(-50%, -50%);
+    }
+    .card {
+      width: 80px;
+      height: 120px;
+      perspective: 1000px;
+      margin: auto;
+    }
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+      position: relative;
+    }
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      border-radius: 0.5rem;
+      border: 2px solid #333;
+    }
+    .card-back {
+      background-image: url('./assets/back_card.png');
+      background-size: cover;
+      background-position: center;
+    }
+    .card-front {
+      background: white;
+      color: #333;
+      transform: rotateY(180deg);
+    }
+    .active {
+      background-color: #78c365 !important;
+    }
+  </style>
+</head>
+<body onload="onEnter()" class="bg-[#2b1f1f] text-white min-h-screen flex flex-col items-center p-4">
+  <h1 class="text-3xl font-bold mb-4">Fleet Planning Poker</h1>
+
+  <div id="joinArea" class="mb-6">
+    <input type="text" id="usernameInput" placeholder="Enter your name" class="text-black p-2 rounded" />
+    <button onclick="joinTable()" class="bg-blue-500 px-4 py-2 rounded ml-2">Take a Seat</button>
+  </div>
+
+  <div class="table-wrapper" id="table">
+    <!-- Seats will render here -->
+  </div>
+
+  <div id="controls" class="mt-6 hidden">
+    <div class="flex flex-wrap justify-center gap-2 mb-4">
+      <button id="1" onclick="vote('1')" class="bg-white text-black px-4 py-2 rounded">1</button>
+      <button id="2" onclick="vote('2')" class="bg-white text-black px-4 py-2 rounded">2</button>
+      <button id="3" onclick="vote('3')" class="bg-white text-black px-4 py-2 rounded">3</button>
+      <button id="5" onclick="vote('5')" class="bg-white text-black px-4 py-2 rounded">5</button>
+      <button id="8" onclick="vote('8')" class="bg-white text-black px-4 py-2 rounded">8</button>
+      <button id="13" onclick="vote('13')" class="bg-white text-black px-4 py-2 rounded">13</button>
+      <button id="21" onclick="vote('21')" class="bg-white text-black px-4 py-2 rounded">21</button>
+    </div>
+    <div class="flex flex-wrap justify-center gap-4 mb-4">
+      <button onclick="reveal()" class="bg-green-500 px-4 py-2 rounded">Reveal</button>
+      <button onclick="reset()" class="bg-orange-600 px-4 py-2 rounded">Reset</button>
+      <button onclick="exit()" class="bg-red-600 px-4 py-2 rounded">Exit</button>
+    </div>
+  </div>
+
+  <script>
+    const socket = io();
+    let username = "";
+    let revealed = false;
+    let currentUsers = [];
+
+    const seatPositions = [
+    {y: 5, x: 50},
+    {y: 5, x: 70},
+    {y: 20, x: 85},
+    {y: 80, x: 85},
+    {y: 95, x: 70},
+    {y: 95, x: 50},
+    {y: 95, x: 30},
+    {y: 80, x: 15},
+    {y: 20, x: 15},
+    {y: 5, x: 30},
+    ];
+
+    function joinTable() {
+      const nameInput = document.getElementById("usernameInput");
+      if (nameInput.value.trim()) {
+        username = nameInput.value.trim();
+        document.cookie = "user="+username;
+        socket.emit("register", username);
+        document.getElementById("joinArea").style.display = "none";
+        document.getElementById("controls").style.display = "block";
+      }
+    }
+
+    function onEnter() {
+      if(document.cookie) {
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('user='));
+        if (cookie) {
+          username = cookie.split('=')[1];
+          socket.emit("register", username);
+          document.getElementById("joinArea").style.display = "none";
+          document.getElementById("controls").style.display = "block";
+        }
+      }
+    }
+
+    function exit() {
+      document.cookie = "user=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+      document.getElementById("joinArea").style.display = "block";
+      document.getElementById("controls").style.display = "none";
+      socket.emit("exit", username);
+    }
+
+    function vote(value) {
+      document.querySelectorAll("button").forEach((button) => {
+              button.classList.remove("active");
+      });
+      document.getElementById(value).classList.add("active");
+      if (!revealed) socket.emit("vote", value);    }
+
+    function reveal() {
+      socket.emit("reveal");
+    }
+
+    function reset() {
+      socket.emit("reset");
+    }
+
+    function renderSeats(users) {
+      const table = document.getElementById("table");
+      table.innerHTML = "";
+      users.forEach((user, index) => {
+        const pos = seatPositions[index % seatPositions.length];
+
+        const seat = document.createElement("div");
+        seat.className = "seat";
+        seat.style.top = `${pos.y}%`;
+        seat.style.left = `${pos.x}%`;
+
+        const label = document.createElement("div");
+        label.className = "mb-1 text-xs";
+        label.textContent = user.name;
+
+        const status = document.createElement("div");
+        status.className = "voted-label";
+        status.textContent = user.voted ? "✅ Voted" : "⌛ Waiting";
+
+        const card = document.createElement("div");
+        card.className = "card" + (revealed ? " flipped" : "");
+
+        const inner = document.createElement("div");
+        inner.className = "card-inner";
+
+        const back = document.createElement("div");
+        back.className = "card-back";
+
+        const front = document.createElement("div");
+        front.className = "card-front";
+        front.textContent = revealed ? (user.vote || "") : "";
+
+        inner.appendChild(back);
+        inner.appendChild(front);
+        card.appendChild(inner);
+
+        seat.appendChild(label);
+        seat.appendChild(status);
+        seat.appendChild(card);
+        table.appendChild(seat);
+      });
+    }
+
+    socket.on("userlist", users => {
+      currentUsers = users;
+      if (!revealed) renderSeats(users);
+    });
+
+    socket.on("results", results => {
+      revealed = true;
+      currentUsers = results;
+      renderSeats(results);
+    });
+
+    socket.on("reset", () => {
+      document.querySelectorAll("button").forEach((button) => {
+        button.classList.remove("active");
+      });
+      revealed = false;
+      renderSeats(currentUsers);
+    });
+  </script>
+</body>
+</html>

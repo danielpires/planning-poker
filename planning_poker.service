@@ -1,0 +1,11 @@
+[Unit]
+Description=Fleet Planning Poker
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=npm start --prefix /home/pi/planning_poker
+
+[Install]
+WantedBy=multi-user.target
