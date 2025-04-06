@@ -29,6 +29,7 @@ export class WebSocketServer {
 
       socket.on("exit", () => {
         const room = this.users[socket.id]?.room;
+        socket.leave(room);
         delete this.users[socket.id];
         this.updateUserList(room);
       });
@@ -36,6 +37,7 @@ export class WebSocketServer {
       socket.on("disconnect", () => {
         console.log("User disconnected: " + socket.id);
         const room = this.users[socket.id]?.room;
+        socket.leave(room);
         delete this.users[socket.id];
         this.updateUserList(room);
       });
