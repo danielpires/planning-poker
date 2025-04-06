@@ -79,6 +79,12 @@
         placeholder="Enter your name"
         class="text-black p-2 rounded"
       />
+      <input
+        type="text"
+        id="roomInput"
+        placeholder="Enter your room"
+        class="text-black p-2 rounded"
+      />
       <button onclick="joinTable()" class="bg-blue-500 px-4 py-2 rounded ml-2">
         Take a Seat
       </button>
@@ -156,6 +162,7 @@
     <script>
       const socket = io();
       let username = "";
+      let room = "";
       let revealed = false;
       let currentUsers = [];
 
@@ -174,10 +181,13 @@
 
       function joinTable() {
         const nameInput = document.getElementById("usernameInput");
-        if (nameInput.value.trim()) {
+        const roomInput = document.getElementById("roomInput");
+        if (nameInput.value.trim() && roomInput.value.trim()) {
           username = nameInput.value.trim();
-          document.cookie = "user=" + username;
-          socket.emit("register", username);
+          room = roomInput.value.trim();
+          document.cookie = "user=" + username
+          document.cookie = "room=" + room;
+          socket.emit("register", {username, room});
           document.getElementById("joinArea").style.display = "none";
           document.getElementById("controls").style.display = "block";
         }
@@ -185,12 +195,17 @@
 
       function onEnter() {
         if (document.cookie) {
-          const cookie = document.cookie
+          const cookie = document.cookie;
+          const usernameCookie = cookie
             .split("; ")
             .find((row) => row.startsWith("user="));
-          if (cookie) {
-            username = cookie.split("=")[1];
-            socket.emit("register", username);
+          const roomCookie = cookie
+            .split("; ")
+            .find((row) => row.startsWith("room="));
+          if (usernameCookie && roomCookie) {
+            username = usernameCookie.split("=")[1];
+            room = roomCookie.split("=")[1];
+            socket.emit("register", {username, room});
             document.getElementById("joinArea").style.display = "none";
             document.getElementById("controls").style.display = "block";
           }
@@ -198,7 +213,7 @@
       }
 
       function exit() {
-        document.cookie = "user=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+        document.cookie = "user=; room=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
         document.getElementById("joinArea").style.display = "block";
         document.getElementById("controls").style.display = "none";
         socket.emit("exit", username);
