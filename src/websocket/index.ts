@@ -44,12 +44,14 @@ export class WebSocketServer {
 
       socket.on("vote", (value: string) => {
         const user = this.users[socket.id];
+        if (!user) return;
         user.vote = value;
         this.updateUserList(user.room);
       });
 
       socket.on("reveal", () => {
         const user = this.users[socket.id];
+        if (!user) return;
         this.revealVotes(user.room);
       });
 
