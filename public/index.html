@@ -64,6 +64,32 @@
       .active {
         background-color: #78c365 !important;
       }
+      .bell-button {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        width: 20px;
+        height: 20px;
+        background: #ffd700;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+      }
+      .bell-button:hover {
+        transform: scale(1.1);
+      }
+      .seat {
+        position: absolute;
+        width: 100px;
+        text-align: center;
+        transform: translate(-50%, -50%);
+        position: relative;
+      }
     </style>
   </head>
   <body
@@ -254,6 +280,15 @@
           status.className = "voted-label";
           status.textContent = user.voted ? "✅ Voted" : "⌛ Waiting";
 
+          if (user.name !== username) {
+            const bellButton = document.createElement("button");
+            bellButton.className = "bell-button";
+            bellButton.innerHTML = "🔔";
+            bellButton.onclick = () => notifyUser(user.name);
+            bellButton.title = `Notify ${user.name}`;
+            seat.appendChild(bellButton);
+          }
+
           const card = document.createElement("div");
           card.className = "card" + (revealed ? " flipped" : "");
 
@@ -278,6 +313,16 @@
         });
       }
 
+      function notifyUser(targetUsername) {
+        socket.emit('notify', targetUsername);
+      }
+
+      function playBellSound() {
+        const audio = new Audio('./assets/bell.mp3');
+        audio.volume = 0.5;
+        audio.play().catch(e => console.log('Could not play sound:', e));
+      }
+
       socket.on("users", (users) => {
         currentUsers = users;
         if (!revealed) renderSeats(users);
@@ -295,6 +340,12 @@
         });
         revealed = false;
         renderSeats(currentUsers);
+      });
+
+      socket.on('bell-notification', (data) => {
+        if (data.target === username) {
+          playBellSound();
+        }
       });
     </script>
   </body>
