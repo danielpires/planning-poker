@@ -83,13 +83,6 @@
       .bell-button:hover {
         transform: scale(1.1);
       }
-      .seat {
-        position: absolute;
-        width: 100px;
-        text-align: center;
-        transform: translate(-50%, -50%);
-        position: relative;
-      }
     </style>
   </head>
   <body
@@ -191,6 +184,7 @@
       let room = "";
       let revealed = false;
       let currentUsers = [];
+      let bellCooldowns = {};
 
       const seatPositions = [
         { y: 5, x: 50 },
@@ -344,6 +338,11 @@
 
       socket.on('bell-notification', (data) => {
         if (data.target === username) {
+
+          if(bellCooldowns[data.target] && Date.now() - bellCooldowns[data.target] < 5000) {
+            return;
+          }
+          bellCooldowns[data.target] = Date.now();
           playBellSound();
         }
       });
