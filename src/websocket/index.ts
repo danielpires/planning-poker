@@ -55,6 +55,22 @@ export class WebSocketServer {
         this.revealVotes(user.room);
       });
 
+      socket.on('notify', (targetUsername: string) => {
+        const user = this.users[socket.id];
+        if (!user) return;
+        
+        const targetSocketId = Object.entries(this.users).find(
+          ([id, u]) => u.name === targetUsername && u.room === user.room
+        )?.[0];
+        
+        if (targetSocketId) {
+          this.server.to(targetSocketId).emit('bell-notification', {
+            from: user.name,
+            target: targetUsername
+          });
+        }
+      })
+
       socket.on("reset", () => {
         const room = this.users[socket.id]?.room;
         Object.values(this.users).forEach((user) => {
