@@ -184,7 +184,7 @@
       let room = "";
       let revealed = false;
       let currentUsers = [];
-      let bellCooldowns = {};
+      let bellCooldown;
 
       const seatPositions = [
         { y: 5, x: 50 },
@@ -339,10 +339,10 @@
       socket.on('bell-notification', (data) => {
         if (data.target === username) {
 
-          if(bellCooldowns[data.target] && Date.now() - bellCooldowns[data.target] < 5000) {
+          if(bellCooldown && Date.now() - bellCooldown < 5000) {
             return;
           }
-          bellCooldowns[data.target] = Date.now();
+          bellCooldown = Date.now();
           playBellSound();
         }
       });
